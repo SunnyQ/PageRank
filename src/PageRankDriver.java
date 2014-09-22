@@ -1,4 +1,5 @@
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.SequenceFile;
@@ -33,9 +34,10 @@ public class PageRankDriver {
 		int nodeNum = Integer.parseInt(args[3]);
 		int mode = Integer.parseInt(args[4]);
 		int compressMode = Integer.parseInt(args[5]);
+		String tmpFileName = "/tmp/output";
 
 		Configuration conf = new Configuration();
-
+		FileSystem fs = FileSystem.get(conf);
 
 		// Data processing job
 		if (mode == 0 || mode == 1) {
@@ -46,10 +48,12 @@ public class PageRankDriver {
 			job.setInputFormatClass(SequenceFileInputFormat.class);
 
 			// IdentityReducer Performs no reduction, writing all input values directly to the output.
-			job.setNumReduceTasks(0);
 
 			job.setMapperClass(DataProcessMapper.class);
+			job.setMapOutputKeyClass(Text.class);
+			job.setMapOutputValueClass(Text.class);
 
+			job.setReducerClass(DataProcessReducer.class);
 			job.setOutputKeyClass(NullWritable.class);
 			job.setOutputValueClass(Text.class);
 
@@ -58,18 +62,28 @@ public class PageRankDriver {
 
 				FileInputFormat.addInputPath(job, new Path(args[0] + "/metadata-" + df.format(i)));
 			}
-			FileOutputFormat.setOutputPath(job, new Path(args[1] + "-0"));
 
-			if (compressMode == 0) {
-				job.setOutputFormatClass(TextOutputFormat.class);
-			} else if (compressMode == 3) {
-				job.setOutputFormatClass(SequenceFileOutputFormat.class);
-				SequenceFileOutputFormat.setCompressOutput(job, true);
-				SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
-				SequenceFileOutputFormat.setOutputCompressorClass(job, SnappyCodec.class);
-			} else if (compressMode == 4){
-				job.setOutputFormatClass(SequenceFileOutputFormat.class);
-			}
+
+			FileOutputFormat.setOutputPath(job, new Path(args[1] + "-0"));
+			//FileOutputFormat.setOutputPath(job, new Path(tmpFileName + "-0"));
+			job.setOutputFormatClass(TextOutputFormat.class);
+
+
+//			if (compressMode == 0) {
+//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
+//				SequenceFileOutputFormat.setCompressOutput(job, false);
+//			} else if (compressMode == 1) {
+//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
+//				SequenceFileOutputFormat.setCompressOutput(job, true);
+//			} else if (compressMode == 3) {
+//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
+//				SequenceFileOutputFormat.setCompressOutput(job, true);
+//				SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
+//				SequenceFileOutputFormat.setOutputCompressorClass(job, SnappyCodec.class);
+//			} else if (compressMode == 4){
+//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
+//				SequenceFileOutputFormat.setCompressOutput(job, true);
+//			}
 
 			if (!job.waitForCompletion(true)) {
 				System.err.println("Data processing error.");
@@ -113,6 +127,13 @@ public class PageRankDriver {
 
 				FileInputFormat.addInputPath(jobIter, new Path(args[1] + "-" + (iter - 1)));
 				FileOutputFormat.setOutputPath(jobIter, new Path(args[1] + "-" + iter));
+//
+//				FileInputFormat.addInputPath(jobIter, new Path(tmpFileName + "-" + (iter - 1)));
+//				if (iter != PAGERANK_ITER_NUM) {
+//					FileOutputFormat.setOutputPath(jobIter, new Path(tmpFileName + "-" + iter));
+//				} else {
+//					FileOutputFormat.setOutputPath(jobIter, new Path(args[1]));
+//				}
 				//SequenceFileOutputFormat.setCompressOutput(jobIter, true);
 				//SequenceFileOutputFormat.setOutputCompressionType(jobIter, SequenceFile.CompressionType.BLOCK);
 				//SequenceFileOutputFormat.setOutputCompressorClass(jobIter, SnappyCodec.class);

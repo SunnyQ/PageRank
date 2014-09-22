@@ -12,7 +12,7 @@ import java.util.*;
 /**
  * Created by Wei on 9/15/14.
  */
-public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
+public class DataProcessMapper extends Mapper<Text, Text, Text, Text> {
 	@Override
 	// Input: SequenceFile
 	// Output: TextOutputFormat  <null, nodeName + "\t" + pageRank + "\t" + links>
@@ -20,16 +20,16 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 			throws IOException, InterruptedException {
 		String nodeName = key.toString();
 		String line = value.toString();
+		String linkListStr = "";
 
-		// Read outgoing links from json string(csv).
-		String linkListStr =  getLinkList(line, context);
-		String res = nodeName + "\t1.0";
-
-		if (linkListStr.length() > 0) {
-			res += ("\t" +linkListStr);
+		// Read outgoing links from json string.
+		if (!nodeName.contains(",")) {
+			linkListStr = getLinkList(line, context);
+		} else {
+			linkListStr = "";
 		}
 
-		context.write(NullWritable.get(), new Text(res));
+		context.write(new Text(nodeName), new Text(linkListStr));
 	}
 	private String getLinkListx(String str, Context context) throws IOException {
 		JsonFactory jf = new JsonFactory();
@@ -48,7 +48,7 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 					if ("a".equals(linkTmp.get("type"))) {
 						String ss = (String)linkTmp.get("href");
 						//System.out.println(ss);
-						resultStr += (",@-@," + ss);
+						resultStr += ("," + ss);
 
 						//context.getCounter(MyCounter.Counter).increment(1);
 						//System.out.println(link);
@@ -57,9 +57,10 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 			}
 		}
 
-		return resultStr.length() == 0 ? "" : resultStr.substring(5);
+		return resultStr.length() == 0 ? "" : resultStr.substring(1);
 	}
-	private String getLinkList(String str, Context context) {
+
+	private String getLinkList1(String str, Context context) {
 		String resultStr = "";
 		boolean isTypeA = false;
 
@@ -99,7 +100,7 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 								// && !map.containsKey(link)
 								if (isTypeA) {
 									// SKip duplicated links.
-									resultStr += (",@-@," + link);
+									resultStr += ("," + link);
 									map.put(link, 1);
 									context.getCounter(MyCounter.Counter).increment(1);
 									System.out.println(link);
@@ -115,11 +116,10 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 		}
 
 		// Strip the first ",".
-		return resultStr.length() == 0 ? "" : resultStr.substring(5);
+		return resultStr.length() == 0 ? "" : resultStr.substring(1);
 	}
 
-
-	private String getLinkList1(String str, Context context) {
+	private String getLinkList(String str, Context context) {
 		String resultStr = "";
 		boolean isTypeA = false;
 
@@ -155,8 +155,9 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 									jp.nextToken();
 									String link = jp.getText();
 
-									if (isTypeA) {
-										resultStr += (",@-@," + link);
+									// Filter out (discard) all the urls which contain comma
+									if (isTypeA && link != null && !link.contains(",")) {
+										resultStr += ("\t" + link);
 									}
 								} else if (jp.getCurrentToken() == JsonToken.END_OBJECT){
 									isTypeA = false;
@@ -173,6 +174,6 @@ public class DataProcessMapper extends Mapper<Text, Text, NullWritable, Text> {
 		}
 
 		// Strip the first ",".
-		return resultStr.length() == 0 ? "" : resultStr.substring(5);
+		return resultStr.length() == 0 ? "" : resultStr.substring(1);
 	}
 }
