@@ -68,22 +68,21 @@ public class PageRankDriver {
 			//FileOutputFormat.setOutputPath(job, new Path(tmpFileName + "-0"));
 			job.setOutputFormatClass(TextOutputFormat.class);
 
+			//TextOutputFormat.setCompressOutput(job, true);
+			//TextOutputFormat.setOutputCompressorClass(job, SnappyCodec.class);
 
-//			if (compressMode == 0) {
-//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
-//				SequenceFileOutputFormat.setCompressOutput(job, false);
-//			} else if (compressMode == 1) {
-//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
-//				SequenceFileOutputFormat.setCompressOutput(job, true);
-//			} else if (compressMode == 3) {
-//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
-//				SequenceFileOutputFormat.setCompressOutput(job, true);
-//				SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
-//				SequenceFileOutputFormat.setOutputCompressorClass(job, SnappyCodec.class);
-//			} else if (compressMode == 4){
-//				job.setOutputFormatClass(SequenceFileOutputFormat.class);
-//				SequenceFileOutputFormat.setCompressOutput(job, true);
-//			}
+
+			if (compressMode == 0) {
+				TextOutputFormat.setCompressOutput(job, false);
+			} else if (compressMode == 1) {
+				TextOutputFormat.setCompressOutput(job, true);
+			} else if (compressMode == 2) {
+				TextOutputFormat.setCompressOutput(job, true);
+				TextOutputFormat.setOutputCompressorClass(job, BZip2Codec.class);
+			} else if (compressMode == 3){
+				TextOutputFormat.setCompressOutput(job, true);
+				TextOutputFormat.setOutputCompressorClass(job, SnappyCodec.class);
+			}
 
 			if (!job.waitForCompletion(true)) {
 				System.err.println("Data processing error.");
@@ -99,7 +98,7 @@ public class PageRankDriver {
 				conf = new Configuration();
 				//conf.setBoolean("mapred.compress.map.output", true);
 				//conf.setClass("mapred.map.output.compression.codec",
-								//SnappyCodec.class, CompressionCodec.class);
+				//SnappyCodec.class, CompressionCodec.class);
 
 				System.out.println("Page rank iteration + " + iter + ".");
 				Job jobIter = new Job(conf);
@@ -111,32 +110,38 @@ public class PageRankDriver {
 				jobIter.setMapOutputValueClass(Text.class);
 
 				jobIter.setCombinerClass(PageRankCombiner.class);
-				jobIter.setNumReduceTasks(nodeNum * 2);
+				jobIter.setNumReduceTasks(nodeNum * 4);
 
-				// jobIter.setNumReduceTasks(3*10);
 				jobIter.setReducerClass(PangRankReducer.class);
 				jobIter.setOutputKeyClass(NullWritable.class);
 				jobIter.setOutputValueClass(Text.class);
 
 				jobIter.setInputFormatClass(TextInputFormat.class);
 				jobIter.setOutputFormatClass(TextOutputFormat.class);
+				TextOutputFormat.setCompressOutput(jobIter, true);
+				TextOutputFormat.setOutputCompressorClass(jobIter, SnappyCodec.class);
 
 
-				//jobIter.setInputFormatClass(SequenceFileInputFormat.class);
-				//jobIter.setOutputFormatClass(SequenceFileOutputFormat.class);
+				if (iter == 1) {
+					FileInputFormat.addInputPath(jobIter, new Path(args[1] + "-0"));
+				} else {
+					//FileInputFormat.addInputPath(jobIter, new Path(args[1] + "-" + (iter - 1)));
+					FileInputFormat.addInputPath(jobIter, new Path(tmpFileName + "-" + (iter - 1)));
+				}
 
-				FileInputFormat.addInputPath(jobIter, new Path(args[1] + "-" + (iter - 1)));
-				FileOutputFormat.setOutputPath(jobIter, new Path(args[1] + "-" + iter));
-//
-//				FileInputFormat.addInputPath(jobIter, new Path(tmpFileName + "-" + (iter - 1)));
-//				if (iter != PAGERANK_ITER_NUM) {
-//					FileOutputFormat.setOutputPath(jobIter, new Path(tmpFileName + "-" + iter));
-//				} else {
-//					FileOutputFormat.setOutputPath(jobIter, new Path(args[1]));
-//				}
-				//SequenceFileOutputFormat.setCompressOutput(jobIter, true);
-				//SequenceFileOutputFormat.setOutputCompressionType(jobIter, SequenceFile.CompressionType.BLOCK);
-				//SequenceFileOutputFormat.setOutputCompressorClass(jobIter, SnappyCodec.class);
+				if (iter > 2) {
+					Path p = new Path(tmpFileName + "-" + (iter - 2));
+					if (fs.exists(p))
+					fs.delete(p, true);
+				}
+
+				if (iter != PAGERANK_ITER_NUM) {
+					//FileOutputFormat.setOutputPath(jobIter, new Path(args[1] + "-" + iter));
+
+					FileOutputFormat.setOutputPath(jobIter, new Path(tmpFileName + "-" + iter));
+				} else {
+					FileOutputFormat.setOutputPath(jobIter, new Path(args[1]+"-"+iter));
+				}
 
 				if (!jobIter.waitForCompletion(true)) {
 					System.err.println("PageRank iteration " + iter + " error.");
